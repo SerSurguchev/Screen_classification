@@ -3,16 +3,6 @@ import torch.nn as nn
 import numpy as np
 import yaml
 
-interverted_residual_setting = [
-    # t, c, n, s
-    [1, 16, 1, 1],
-    [6, 24, 2, 2],
-    [6, 32, 3, 2],
-    [6, 64, 4, 2],
-    [6, 96, 3, 1],
-    [6, 160, 3, 2],
-    [6, 320, 1, 1],
-]
 
 def make_divisible(v, divisor=8, min_value=None):
     """
@@ -120,17 +110,18 @@ class InvertedResidual(nn.Module):
 
 
 class MobileNetV2(nn.Module):
-    def __init__(self, n_class=2, input_size=224, width_mult=1.):
+    def __init__(self, cfgs,  n_class=2, input_size=224, width_mult=1.):
         super(MobileNetV2, self).__init__()
         block = InvertedResidual
         input_channel = 32
         last_channel = 1280
+        self.cfgs = cfgs
 
         assert input_size % 32 == 0
         self.features = [ConvBN_3x3(3, input_channel, 2)]
         self.last_channel = make_divisible(last_channel * width_mult) if width_mult > 1.0 else last_channel
 
-        for t, c, n, s in interverted_residual_setting:
+        for t, c, n, s in self.cfgs:
             output_channel = make_divisible(c * width_mult) if t > 1 else c
 
             for i in range(n):
@@ -151,9 +142,22 @@ class MobileNetV2(nn.Module):
         x = self.classifier(x)
         return x
 
+def BuildMobilenetv2(**kwargs):
+    cfgs = [
+        # t, c, n, s
+        [1, 16, 1, 1],
+        [6, 24, 2, 2],
+        [6, 32, 3, 2],
+        [6, 64, 4, 2],
+        [6, 96, 3, 1],
+        [6, 160, 3, 2],
+        [6, 320, 1, 1],
+    ]
+
+    return MobileNetV2(cfgs, **kwargs)   
 
 def mobilenev2_test():
-    net = MobileNetV2()
+    net = BuildMobilenetv2()
     output = net(torch.randn(4, 3, 224, 224))
     assert output.shape == (4, 2), 'Something went wrong...'
     print('Success!')
