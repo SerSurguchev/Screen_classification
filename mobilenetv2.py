@@ -95,11 +95,11 @@ class InvertedResidual(nn.Module):
         else:
             # Depthwise + Pointwise
             self.conv = nn.Sequential(
-            Pointwise_conv(inp, hidden_dim),
-            Depthwise_conv(hidden_dim, stride),
-            # pw-linear
-            nn.Conv2d(hidden_dim, out, 1, 1, 0, bias=False),
-            nn.BatchNorm2d(out),
+                Pointwise_conv(inp, hidden_dim),
+                Depthwise_conv(hidden_dim, stride),
+                # pw-linear
+                nn.Conv2d(hidden_dim, out, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(out),
             )
 
     def forward(self, x):
@@ -141,27 +141,3 @@ class MobileNetV2(nn.Module):
         x = x.mean(3).mean(2)
         x = self.classifier(x)
         return x
-
-def BuildMobilenetv2(**kwargs):
-    cfgs = [
-        # t, c, n, s
-        [1, 16, 1, 1],
-        [6, 24, 2, 2],
-        [6, 32, 3, 2],
-        [6, 64, 4, 2],
-        [6, 96, 3, 1],
-        [6, 160, 3, 2],
-        [6, 320, 1, 1],
-    ]
-
-    return MobileNetV2(cfgs, **kwargs)   
-
-def mobilenev2_test():
-    net = BuildMobilenetv2()
-    output = net(torch.randn(4, 3, 224, 224))
-    assert output.shape == (4, 2), 'Something went wrong...'
-    print('Success!')
-
-
-if __name__ == "__main__":
-    mobilenev2_test()

@@ -179,30 +179,3 @@ class EffNetV2(nn.Module):
         x = self.classifier(x)
         return x
 
-def effnetv2_s(**kwargs):
-    """
-    Constructs a EfficientNetV2-S model
-    """
-    cfgs = [
-        # t, c, n, s, SE
-        [1,  24,  2, 1, 0],
-        [4,  48,  4, 2, 0],
-        [4,  64,  4, 2, 0],
-        [4, 128,  6, 2, 1],
-        [6, 160,  9, 1, 1],
-        [6, 256, 15, 2, 1],
-    ]
-    return EffNetV2(cfgs, **kwargs)
-
-def efficientnetv2_test():
-    net = effnetv2_s()
-    output = net(torch.randn(4, 3, 224, 244))
-    assert output.shape == (4, 2), 'Something went wrong...'
-    print('Success!')
-
-
-if __name__ == "__main__":
-    efficientnetv2_test()
-
-
-

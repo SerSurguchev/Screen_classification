@@ -1,4 +1,54 @@
 import torch
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import random
+
+def save_plots(train_acc, valid_acc, train_loss, valid_loss, net_list, download=False):
+    """
+    Function to save the loss and accuracy plots to disk
+    Parameters:
+    :param train_acc: Python dict containing accuracy on training
+    :param valid_acc: Python dict containing accuracy on validation
+    :param train_loss: Python dict containing loss value on training
+    :param valid_loss: Python dict containing loss value on validation
+    :return:
+    """
+    # Accuracy plots
+    fig, axes = plt.subplots(2, 2, figsize=(20, 15))
+
+    for experiment_id in net_list:
+        axes[0][0].plot(train_acc[experiment_id], label=experiment_id)
+
+    axes[0][0].legend()
+    axes[0][0].set_title('Training accuracy')
+    fig.tight_layout()
+
+    for experiment_id in net_list:
+        axes[0][1].plot(train_loss[experiment_id], label=experiment_id)
+
+    axes[0][1].legend()
+    axes[0][1].set_title('Training loss')
+    fig.tight_layout()
+
+    for experiment_id in net_list:
+        axes[1][0].plot(valid_acc[experiment_id], label=experiment_id)
+
+    axes[1][0].legend()
+    axes[1][0].set_title('Validation accuracy')
+    fig.tight_layout()
+
+    for experiment_id in net_list:
+        axes[1][1].plot(valid_loss[experiment_id], label=experiment_id)
+
+    axes[1][1].legend()
+    axes[1][1].set_title('Validation loss')
+    fig.tight_layout()
+
+
+    if download:
+        fig.savefig('plots.png')
+
 
 class SaveBestModel:
     """
@@ -19,6 +69,18 @@ class SaveBestModel:
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': criterion},
                 file)
+
+def save_model(model, optimizer, criterion, file):
+    """
+    Function to save the trained model to disk.
+    """
+    print(f"Saving final model...")
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss', criterion,
+        }, file)
+
 
 def seed_everything(seed: int):
     random.seed(seed)
