@@ -1,6 +1,6 @@
 import torch
 from tqdm.auto import tqdm
-
+from sparsity import updateBN
 
 def train(model, train_loader, optimizer, criterion, device=None):
     """
@@ -29,18 +29,20 @@ def train(model, train_loader, optimizer, criterion, device=None):
         
         # Zero grad
         optimizer.zero_grad()
-       
-        with torch.cuda.amp.autocast():
-            outputs = model(image)
-            
-            loss = criterion(outputs, labels)
 
+        with torch.cuda.amp.autocast():
+            outputs = model(image)            
+            loss = criterion(outputs, labels)
         train_running_loss += loss.item()
         _, preds = torch.max(output, 1)
         train_running_correct += (preds==labels).sum().item()
         
         # Backpropagation
         scaler.scale(loss).backward()
+
+        # Sparsity trainign        
+        if sparsity:
+            updateBN()
 
         # Update the optimizer parameters
         scaler.step(optimizer)
@@ -51,8 +53,7 @@ def train(model, train_loader, optimizer, criterion, device=None):
     epoch_acc = 100. * (train_running_correct / len(train_loader.dataset))
     return epoch_loss, epoch_acc
 
-
-def validation(model, val_loader, criterion):
+def validation(model, val_loader, criterion, device=None):
     """
     Function with validation body description
     Parameters:
@@ -71,8 +72,8 @@ def validation(model, val_loader, criterion):
             counter += 1
 
             image, labels = data
-            image = image.to(config.DEVICE)
-            labels = labels.to(config.DEVICE)
+            image = image.to(device)
+            labels = labels.to(device)
 
             # Forward pass
             with torch.cuda.amp.autocast():
