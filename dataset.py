@@ -45,7 +45,7 @@ def train_loader(path, batch_size=32, num_workers=4, pin_memory=True):
                                 transforms.RandomVerticalFlip(p=0.5),
                                 transforms.ToTensor(),
                                 transforms.Lambda(lambda x: x[np.random.permutation(3), :, :]),
-                                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+                                normalize
                             ])),
         batch_size=batch_size,
         shuffle=False,
