@@ -97,26 +97,23 @@ def main(opt):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='MobileNetV2', choices=['MobileNetV2',
-                                                                            'EfficientNetV2'], 
-                                                                    help='Choose classification model')
+    parser.add_argument('--model', type=str, default='MobileNetV2', 
+                        choices=['MobileNetV2', 'EfficientNetV2'], 
+                        help='Choose classification model')
 
     parser.add_argument('--device', default='cuda', help='GPU device 0,1,2 or CPU')
-    parser.add_argument('--optimizer', type=str, default='SGD', choices=['SGD', 
-                                                                        'Adam', 
-                                                                        'AdamW'], 
-                                                                help='optimizer')
+    parser.add_argument('--optimizer', type=str, default='SGD', 
+                        choices=['SGD', 'Adam', 'AdamW'], 
+                        help='optimizer')
         
     parser.add_argument('--momentum', type=float, default=0.9,help='SGD momentum')
     parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float, help='weight decay')
-    parser.add_argument('--scheduler', default=False, choices=['ReduceLROnPlateau',
-                                                                'StepLR',
-                                                                 False ],
-                                                                help='lr scheduler')
+    parser.add_argument('--scheduler', default=False, choices=['ReduceLROnPlateau','StepLR', False],
+                        help='lr scheduler')
 
     parser.add_argument('--epochs', type=int, default=40, help='Number of epochs for training')
     parser.add_argument('--batch_size', type=int, default=64, help='Number of epochs to train')            
-    parser.add_argument('--sr', dest='sr', default=False, help='train with channel sparsity regularization')
+    parser.add_argument('--sr', default=False, help='train with channel sparsity regularization')
     return parser.parse_args()
 
 

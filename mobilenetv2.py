@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import yaml
-
+import math
 
 def make_divisible(v, divisor=8, min_value=None):
     """
@@ -40,66 +39,47 @@ class ConvBN_1x1(nn.Sequential):
             nn.Conv2d(inp, output, 
                     kernel_size=1,
                     stride=1, 
-                    padding=0, bias=False),
+                    padding=0, 
+                    bias=False),
 
             nn.BatchNorm2d(output),
             nn.ReLU6(inplace=True),
         )
 
-# Depthwise Conv
-class Depthwise_conv(nn.Module):
-    def __init__(self, hidden, stride, bias=False):
-        super(Depthwise_conv, self).__init__()
-        self.conv = nn.Conv2d(hidden, hidden, kernel_size=3,
-                stride=stride, padding=1, 
-                groups=hidden, bias=bias)
 
-        self.bn = nn.BatchNorm2d(hidden)
-        self.act = nn.ReLU6(inplace=True)
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x) ) )
-
-# Pointwise Conv
-class Pointwise_conv(nn.Module):
-    def __init__(self, inp, out, stride=1, bias=False):
-        super(Pointwise_conv, self).__init__()
-
-        self.conv = nn.Conv2d(inp, out, kernel_size=1,
-                stride=stride, padding=0, bias=bias)
-        self.bn = nn.BatchNorm2d(out)
-        self.act = nn.ReLU6(inplace=True)
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x) ) )
-
-# Inverted residual
 class InvertedResidual(nn.Module):
-    def __init__(self, inp, out, stride, expand_ratio):
+    def __init__(self, inp, oup, stride, expand_ratio):
         super(InvertedResidual, self).__init__()
+
         self.stride = stride
         assert stride in [1, 2], 'Stride should be equal either 1 or 2'
 
         hidden_dim = int(inp * expand_ratio)
-        self.use_res_connect = self.stride == 1 and inp == out
+        self.use_res_connect = self.stride == 1 and inp == oup
 
         if expand_ratio == 1:
             self.conv = nn.Sequential(
-                # Depthwise
-                Depthwise_conv(hidden_dim, stride),
+                # Depthwise conv
+                nn.Conv2d(hidden_dim, hidden_dim, 3, stride, 1, groups=hidden_dim, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU6(inplace=True),
                 # pw-linear
-                nn.Conv2d(hidden_dim, out, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(out),
+                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(oup),
             )
-
         else:
-            # Depthwise + Pointwise
             self.conv = nn.Sequential(
-                Pointwise_conv(inp, hidden_dim),
-                Depthwise_conv(hidden_dim, stride),
+                # Pointwise conv
+                nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU6(inplace=True),
+                # Depthwise conv
+                nn.Conv2d(hidden_dim, hidden_dim, 3, stride, 1, groups=hidden_dim, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU6(inplace=True),
                 # pw-linear
-                nn.Conv2d(hidden_dim, out, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(out),
+                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(oup),
             )
 
     def forward(self, x):
@@ -110,20 +90,19 @@ class InvertedResidual(nn.Module):
 
 
 class MobileNetV2(nn.Module):
-    def __init__(self, cfgs,  n_class=2, input_size=224, width_mult=1.):
+    def __init__(self, cfgs,  n_class=2, input_size=224, width_mult=1., dropout=0.2):
         super(MobileNetV2, self).__init__()
         block = InvertedResidual
         input_channel = 32
-        last_channel = 1280
+        self.dropout = dropout
         self.cfgs = cfgs
 
         assert input_size % 32 == 0
-        self.features = [ConvBN_3x3(3, input_channel, 2)]
-        self.last_channel = make_divisible(last_channel * width_mult) if width_mult > 1.0 else last_channel
+        self.features = [ConvBN_3x3(3, input_channel, 3)]
+        self.last_channel = make_divisible(last_channel * width_mult) if width_mult > 1.0 else 1280
 
         for t, c, n, s in self.cfgs:
             output_channel = make_divisible(c * width_mult) if t > 1 else c
-
             for i in range(n):
                 stride = s if i == 0 else 1
                 self.features.append(block(input_channel, output_channel, stride, expand_ratio=t))
@@ -134,10 +113,30 @@ class MobileNetV2(nn.Module):
         self.features.append(ConvBN_1x1(input_channel, self.last_channel))
         self.features = nn.Sequential(*self.features)
         # Building classifier
-        self.classifier = nn.Linear(self.last_channel, n_class)
+        self.classifier = nn.Sequential(
+                        nn.Dropout(self.dropout),
+                        nn.Linear(self.last_channel, n_class),
+                        )
+
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                m.weight.data.normal_(0, 0.01)
+                m.bias.data.zero_()
 
     def forward(self, x):
         x = self.features(x)
-        x = x.mean(3).mean(2)
+        x = nn.functional.adaptive_avg_pool2d(x, (1, 1))
+        x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x

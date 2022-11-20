@@ -60,27 +60,31 @@ class SaveBestModel:
     def __init__(self, best_valid_loss=float('inf')):
         self.best_valid_loss = best_valid_loss
 
-    def __call__(self, current_val_loss, model,
+    def __call__(self, current_val_loss, model
                  optimizer, criterion, file):
         if current_val_loss < self.best_valid_loss:
-            torch.save(
-                {
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
+            torch.save({
+                    'state_dict': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
                     'loss': criterion},
-                file)
+                    file)
 
-def save_model(model, optimizer, criterion, file):
+def save_checkpoint(model, optimizer, criterion, file):
     """
     Function to save the trained model to disk.
     """
-    print(f"Saving final model...")
+    print(f"=> Saving final model...")
     torch.save({
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
+        'state_dict': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
         'loss', criterion,
         }, file)
 
+def load_checkpoint(checkpoint_file, model, optimizer, criterion, device):
+    print('=> Loading checkpoint')
+    checkpoint = torch.load(checkpoint_file, map_location=device)
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
 
 def seed_everything(seed: int):
     random.seed(seed)
