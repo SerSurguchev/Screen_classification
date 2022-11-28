@@ -5,7 +5,7 @@ from mobilenetv2 import *
 from efficientnetv2 import *
 
 
-def BuildEffnetv2_s(pretrained=False, **kwargs):
+def BuildEffnetv2_s(pretrained=True, **kwargs):
     """
     Constructs a EfficientNetV2-S model
     """
@@ -18,7 +18,20 @@ def BuildEffnetv2_s(pretrained=False, **kwargs):
         [6, 160,  9, 1, 1],
         [6, 256, 15, 2, 1],
     ]
+
     model = EffNetV2(cfgs, **kwargs)
+    if pretrained:
+        try:
+            from torch.hub import load_state_dict_from_url
+        except ImportError:
+            from torch.utils.model_zoo import load_url as load_state_dict_from_url
+        pretrained_dict = load_state_dict_from_url('https://storage.googleapis.com/cloud-tpu-checkpoints/efficientnet/v2/efficientnetv2-s-21k.tgz',
+                        progress=True)        
+
+        model_dict = model.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        model.load_state_dict(model_dict)
 
     return model
 
@@ -38,7 +51,7 @@ def BuildMobilenetv2(pretrained=True, **kwargs):
     ]
 
     model =  MobileNetV2(cfgs, **kwargs)   
-    summary(model, (3, 224, 224))
+#    summary(model, (3, 224, 224))
 
     if pretrained:
         try:
@@ -50,7 +63,7 @@ def BuildMobilenetv2(pretrained=True, **kwargs):
              progress=True)
 
         model_dict = model.state_dict()
-        pretrained_dict_conv = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
         model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
     
@@ -67,7 +80,6 @@ def efficientnetv2_test():
     output = net(torch.randn(4, 3, 224, 244))
     assert output.shape == (4, 2), 'Something went wrong...'
     print('Success Efficientnet!')
-
 
 if __name__ == "__main__":
     mobilenev2_test()

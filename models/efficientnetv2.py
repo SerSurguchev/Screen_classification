@@ -76,35 +76,6 @@ class ConvBN_1x1(nn.Sequential):
             SiLU(),
         )
 
-# Depthwise Conv
-class Depthwise_conv(nn.Module):
-    def __init__(self, inp, hidden, stride, 
-                            groups=True, bias=False):
-       
-        super(Depthwise_conv, self).__init__()
-        self.conv = nn.Conv2d(inp, hidden, kernel_size=3,
-                stride=stride, padding=1, 
-                groups=hidden if groups else 1, bias=bias)
-
-        self.bn = nn.BatchNorm2d(hidden)
-        self.act = SiLU()
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x) ) )
-
-# Pointwise Conv
-class Pointwise_conv(nn.Module):
-    def __init__(self, inp, out, stride=1, bias=False):
-        super(Pointwise_conv, self).__init__()
-
-        self.conv = nn.Conv2d(inp, out, kernel_size=1,
-                stride=stride, padding=0, bias=bias)
-        self.bn = nn.BatchNorm2d(out)
-        self.act = SiLU()
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x) ) )
-
 
 class MBConv(nn.Module):
     def __init__(self, inp, oup, stride, expand_ratio, not_fuse):
@@ -115,27 +86,59 @@ class MBConv(nn.Module):
         self.identity = stride == 1 and inp == oup
         if not_fuse:
             self.conv = nn.Sequential(
-                # Depthwise + Pointwise
-                Pointwise_conv(inp, hidden_dim),
-                Depthwise_conv(hidden_dim, hidden_dim, stride),
-                # SE Layer
+                # Pointwise
+                nn.Conv2d(inp, 
+                        hidden_dim, 
+                        kernel_size=1, 
+                        stride=1, 
+                        padding=0, 
+                        bias=False),
+
+                nn.BatchNorm2d(hidden_dim),
+                SiLU(),
+
+                # Depthwise
+                nn.Conv2d(hidden_dim, 
+                        hidden_dim, 
+                        kernel_size=3, 
+                        stride=stride, 
+                        padding=1, 
+                        groups=hidden_dim, 
+                        bias=False),
+               
+                nn.BatchNorm2d(hidden_dim),
+                SiLU(),
+                # SE layer
                 SELayer(inp, hidden_dim),
-                # pw-linear
-                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+
+                # Pw-linear
+                nn.Conv2d(hidden_dim, 
+                        oup, 
+                        kernel_size=1, 
+                        stride=1, 
+                        padding=0, 
+                        bias=False),
+                
                 nn.BatchNorm2d(oup),
             )
-        # Fused-MBConv
         else:
             self.conv = nn.Sequential(
-                # Depthwise 
-                Depthwise_conv(inp, hidden_dim, stride, groups=False),
+                # Fused MBConv
+                nn.Conv2d(inp, 
+                        hidden_dim, 
+                        kernel_size=3, 
+                        stride=stride, 
+                        padding=1, 
+                        bias=False),
+
+                nn.BatchNorm2d(hidden_dim),
+                SiLU(),
                 # SE layer
                 SELayer(inp, hidden_dim),
                 # pw-linear
                 nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
                 nn.BatchNorm2d(oup),
             )
-
 
     def forward(self, x):
         if self.identity:
@@ -151,7 +154,7 @@ class EffNetV2(nn.Module):
 
         # building first layer
         input_channel = _make_divisible(24 * width_mult, 8)
-        layers = [ConvBN_3x3(3, input_channel, 2)]
+        layers = [ConvBN_3x3(3, input_channel, 3)]
 
         # building inverted residual blocks
         block = MBConv

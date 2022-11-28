@@ -117,7 +117,6 @@ class MobileNetV2(nn.Module):
                         nn.Dropout(self.dropout),
                         nn.Linear(self.last_channel, n_class),
                         )
-
         self._initialize_weights()
 
     def _initialize_weights(self):
