@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.quantization import QuantStub, DeQuantStub, fuse_modules
 import numpy as np
 import math
 
@@ -90,12 +91,18 @@ class InvertedResidual(nn.Module):
 
 
 class MobileNetV2(nn.Module):
-    def __init__(self, cfgs,  n_class=2, input_size=224, width_mult=1., dropout=0.2):
+    def __init__(self, cfgs,  n_class=2, input_size=224, QAT=None,  width_mult=1., dropout=0.2):
         super(MobileNetV2, self).__init__()
         block = InvertedResidual
         input_channel = 32
         self.dropout = dropout
         self.cfgs = cfgs
+        # Quantization aware training or not    
+        self.QAT = QAT
+        # QuantStub converts tensors from floating point to quantized
+        self.quant = QuantStub()
+        # DeQuantStub converts tensors from quantized to floating point
+        self.dequant = DeQuantStub()
 
         assert input_size % 32 == 0
         self.features = [ConvBN_3x3(3, input_channel, 3)]
@@ -106,7 +113,6 @@ class MobileNetV2(nn.Module):
             for i in range(n):
                 stride = s if i == 0 else 1
                 self.features.append(block(input_channel, output_channel, stride, expand_ratio=t))
-               #  print('Done...')
                 input_channel = output_channel
 
         # Building last several layers
@@ -133,9 +139,28 @@ class MobileNetV2(nn.Module):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
+    # Fuse Conv+BN and Conv+BN+Relu modules prior to quantization
+    # This operation does not change the numerics
+    def fuse_model(self):
+        for m in self.modules():
+            if type(m) == ConvBN_1x1 or type(m) == ConvBN_3x3:
+                fuse_modules(m, [['0', '1', '2'], inplace=True)
+            if type(m) == InvertedResidual:
+                for idx in range(len(m.conv)):
+                    if type(m.conv[idx]) == nn.Conv2d:
+                        fuse_modules(m.conv, [str(idx), str(idx + 1)], inplace=True)
+
     def forward(self, x):
-        x = self.features(x)
-        x = nn.functional.adaptive_avg_pool2d(x, (1, 1))
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
+        if self.QAT:
+            x = self.quant(x)
+            x = self.features(x)
+            x = nn.functional.adaptive_avg_pool2d(x, (1, 1))
+            x = torch.flatten(x, 1)
+            x = self.classifier(x)
+            x = self.dequant(x)
+        else:
+            x = self.features(x)
+            x = nn.functional.adaptive_avg_pool2d(x, (1, 1))
+            x = torch.flatten(x, 1)
+            x = self.classifier(x)
         return x

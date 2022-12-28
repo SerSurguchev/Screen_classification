@@ -112,8 +112,10 @@ def get_args():
                         help='lr scheduler')
 
     parser.add_argument('--epochs', type=int, default=40, help='Number of epochs for training')
-    parser.add_argument('--batch_size', type=int, default=64, help='Number of epochs to train')            
-    parser.add_argument('--sr', default=False, help='train with channel sparsity regularization')
+    parser.add_argument('--batch_size', type=int, default=64, help='Number of epochs to train')  
+    parser.add_argument('--transfer', action='store_true', help='Use pretrained model weighrs or not')
+    parser.add_argument('--qat', action='store_true', help='Quantization aware training or not')          
+    parser.add_argument('--sr', default=False, help='Train with channel sparsity regularization')
     return parser.parse_args()
 
 
