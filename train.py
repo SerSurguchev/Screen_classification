@@ -2,17 +2,23 @@ import torch
 from tqdm.auto import tqdm
 from sparsity import updateBN
 
-def train(model, train_loader, optimizer, criterion, device=None):
+def train(model, train_loader, optimizer, criterion, device=None, QAT=False, sparsity=False):
     """
-    Function with training body description
+    Support function for model training.
     Parameters:
     :param model: The model on which the data is trained
     :param train_loader: Batch of images
-    :param optimizer: Model optimizer
-    :param criterion: Loss function
-    :param device: CUDA or CPU
+    :param optimizer: Optimizer to use for training
+    :param criterion: Optimization criterion (loss)
+    :param device: Device to run the training on. Must be 'cpu' or 'cuda'
     """
     model.train()
+
+    # Prepare model to quantization aware training
+    if QAT:
+        model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+        torch.quantization.prepare_qat(model, implace=True)
+
     print('Training...')
 
     train_running_loss = 0.0
@@ -53,15 +59,19 @@ def train(model, train_loader, optimizer, criterion, device=None):
     epoch_acc = 100. * (train_running_correct / len(train_loader.dataset))
     return epoch_loss, epoch_acc
 
-def validation(model, val_loader, criterion, device=None):
+def validation(model, val_loader, criterion, device=None, QAT=False):
     """
-    Function with validation body description
+    Support function for model validation.
     Parameters:
     :param model: The model on which the data is trained
     :param val_loader: Batch of images
-    :param criterion: Loss function
+    :param criterion: Optimization criterion (loss)
     """
     model.eval()
+
+    if QAT:
+        torch.quantization.convert(model, inplace=True)
+
     print('Validation...')
     valid_running_loss = 0.0
     valid_running_correct = 0
